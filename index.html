@@ -574,14 +574,17 @@ function motionLevel() {
 const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const FACE_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 const POSE_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
-const vision = { status: 'off', face: null, pose: null, wantPose: false };
-// Latest readings. `turn` and `jaw` keep their last value when the face is lost.
-const S = { face: null, faceAt: 0, jaw: 0, puff: 0, pucker: 0, turn: 0, move: 0, pose: null, poseAt: 0 };
+const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const vision = { status: 'off', face: null, pose: null, hands: null, wantPose: false, wantHands: false };
+// Latest readings. `turn` and `jaw` keep their last value when the face is lost;
+// `lastFace` stays too, because a hand over the nose often hides the face from the tracker.
+const S = { face: null, lastFace: null, faceAt: 0, jaw: 0, puff: 0, pucker: 0, turn: 0, move: 0, pose: null, poseAt: 0, hands: [], handsAt: 0 };
 const now = () => performance.now();
 const visionOn = () => vision.status === 'ready' && hasVideo;
 const faceSeen = () => !!S.face && now() - S.faceAt < 600;
 const poseSeen = () => !!S.pose && now() - S.poseAt < 600;
-const anyoneSeen = () => faceSeen() || poseSeen();
+const handsSeen = () => S.hands.length > 0 && now() - S.handsAt < 600;
+const anyoneSeen = () => faceSeen() || poseSeen() || handsSeen();
 
 async function initVision() {
   if (!hasVideo || vision.status !== 'off') return;
@@ -600,6 +603,9 @@ async function initVision() {
     ]);
     vision.status = 'ready';
     requestAnimationFrame(visionLoop);
+    // The hand tracker is only needed mid-checkup, so it loads afterwards without holding up the rest.
+    make(mp.HandLandmarker, HAND_MODEL, { numHands: 2 }).then(h => vision.hands = h)
+      .catch(e => console.warn('Hand tracking unavailable; reflexes use timers.', e));
   } catch (e) {
     console.warn('Motion sensing unavailable; using timers instead.', e);
     vision.status = 'failed';
@@ -622,6 +628,9 @@ function visionLoop() {
   lastFrameAt = t;
   try { readFace(vision.face.detectForVideo(video, t), t); } catch {}
   if (vision.wantPose) { try { readPose(vision.pose.detectForVideo(video, t), t); } catch {} }
+  if (vision.wantHands && vision.hands) {
+    try { const r = vision.hands.detectForVideo(video, t); S.hands = r.landmarks || []; if (S.hands.length) S.handsAt = t; } catch {}
+  }
   drawDebug();
 }
 function readFace(r, t) {
@@ -632,7 +641,7 @@ function readFace(r, t) {
   const nose = lm[1], a = lm[234], b = lm[454]; // nose tip, left and right edge of the face
   const w = Math.abs(b.x - a.x) || 1e-3, cx = (a.x + b.x) / 2, cy = nose.y;
   S.move = S.face ? S.move * .7 + Math.hypot(cx - S.face.cx, cy - S.face.cy) / w * .3 : 0;
-  S.face = { cx, cy, w, lm }; S.faceAt = t;
+  S.face = S.lastFace = { cx, cy, w, lm }; S.faceAt = t;
   S.jaw = bs.jawOpen || 0; S.puff = bs.cheekPuff || 0; S.pucker = bs.mouthPucker || 0;
   S.turn = (nose.x - Math.min(a.x, b.x)) / w - .5; // ≈0 facing the camera, toward ±.5 when turned
 }
@@ -653,12 +662,6 @@ function shoulders(lm) {
   if (!visible(l) || !visible(r)) return null;
   return { l, r, w: dist(l, r), y: (l.y + r.y) / 2, minX: Math.min(l.x, r.x), maxX: Math.max(l.x, r.x) };
 }
-/** A hand is close to any of the target landmarks (nose, ears). */
-function touching(targets) {
-  const lm = poseSeen() && S.pose; if (!lm) return false;
-  const scale = dist(lm[7], lm[8]) || .1;
-  return HANDS.some(h => visible(lm[h]) && targets.some(t => dist(lm[h], lm[t]) < .6 * scale));
-}
 /** A hand is in a band of the torso: from `top` to `bottom` shoulder-widths below the shoulders. */
 function handOnTorso(top, bottom) {
   const lm = poseSeen() && S.pose; if (!lm) return false;
@@ -669,8 +672,27 @@ function handOnTorso(top, bottom) {
     return visible(p) && p.x > s.minX - pad && p.x < s.maxX + pad && p.y > s.y + top * s.w && p.y < s.y + bottom * s.w;
   });
 }
-const handOnChest = () => handOnTorso(-.05, .8);
-const handOnBelly = () => handOnTorso(.8, 2);
+
+/* Hand tracker geometry (close-up friendly). Hand ids: 4/8/12/16/20 fingertips, 9 middle of the palm.
+   Face ids: 1 nose tip, 152 chin, 234/454 the sides of the face by the ears. */
+const FINGERTIPS = [4, 8, 12, 16, 20];
+/** The face as last seen, if that was recent enough that the child is still in the same place. */
+const recentFace = () => S.lastFace && now() - S.faceAt < 1500 ? S.lastFace : null;
+/** A fingertip is within `reach` face-widths of any of the given face points. */
+function fingerNear(faceIds, reach) {
+  const f = recentFace(); if (!f || !handsSeen()) return false;
+  const scale = f.w * aspect();
+  return S.hands.some(h => FINGERTIPS.some(t => faceIds.some(i => dist(h[t], f.lm[i]) < reach * scale)));
+}
+const touchingNose = () => fingerNear([1], .35);
+const touchingEar = () => fingerNear([234, 454], .45);
+/** A palm just below the chin and roughly in line with the face: a hand on the chest in a close-up. */
+function palmBelowChin() {
+  const f = recentFace(); if (!f || !handsSeen()) return false;
+  const chin = f.lm[152];
+  return S.hands.some(h => h[9].y > chin.y + .1 * f.w && Math.abs(h[9].x - f.cx) < 1.2 * f.w);
+}
+const handOnChest = () => handOnTorso(-.05, .8) || palmBelowChin();
 
 /** Counts jumps: shoulders rise well above their resting height, then come back down. */
 const J = { base: null, up: false, onJump: null };
@@ -692,9 +714,11 @@ function drawDebug() {
   const dot = (p, c, r = 3) => { dotsCtx.fillStyle = c; dotsCtx.beginPath(); dotsCtx.arc(p.x * w, p.y * h, r, 0, 7); dotsCtx.fill(); };
   if (faceSeen()) S.face.lm.forEach((p, i) => i % 5 || dot(p, '#7ff6ff', 2));
   if (poseSeen()) S.pose.forEach((p, i) => i > 22 || !visible(p) || dot(p, HANDS.includes(i) ? '#ff5d7a' : '#ffc93c', 5));
+  if (handsSeen()) S.hands.forEach(h => h.forEach((p, i) => dot(p, FINGERTIPS.includes(i) ? '#ff5d7a' : '#ffffff', FINGERTIPS.includes(i) ? 5 : 3)));
   $('#trackText').textContent = faceSeen()
     ? `face ✓  jaw ${S.jaw.toFixed(2)}  turn ${S.turn.toFixed(2)}\nmove ${S.move.toFixed(3)}  puff ${S.puff.toFixed(2)}  pucker ${S.pucker.toFixed(2)}`
     : 'no face';
+  if (vision.wantHands) $('#trackText').textContent += `\nhands ${handsSeen() ? S.hands.length : 0}` + (vision.hands ? '' : ' (loading)');
 }
 
 /* ================= Step control (skip / end) ================= */
@@ -784,6 +808,7 @@ async function expect(test, { hold = 400, timeout = 6000, nudges = [], fallback 
 }
 /** Pose tracking costs more than face tracking, so it only runs during the steps that need it. */
 function usePose() { vision.wantPose = true; S.pose = null; onCleanup(() => vision.wantPose = false); }
+function useHands() { vision.wantHands = true; S.hands = []; onCleanup(() => vision.wantHands = false); }
 
 /**
  * The AAAH meter fills while the child is loud (mic) with their mouth open (camera).
@@ -928,7 +953,7 @@ async function ears() {
 }
 
 async function heart() {
-  usePose();
+  usePose(); useHands();
   await say(`Now let's listen to your heart. Put your hand on your chest, like this.`);
   dock(`<div class="bigemoji">🤚❤️</div>`);
   const ok = await expect(handOnChest, {
@@ -994,26 +1019,25 @@ function blowOut(candles, state) {
 }
 
 async function reflexes() {
-  usePose();
+  useHands();
   await say(`Reflex test! Do what I say, as fast as you can!`);
-  let noseY = null;
-  const bentDown = () => noseY != null && (!poseSeen() || S.pose[0].y > noseY + .15);
+  // Nose, ears and fingers are checked with the hand tracker. Toes and belly button are
+  // usually out of the camera's view, so those just get a pause and a cheer.
   const moves = [
-    { line: 'Touch your nose!', emoji: '👃', part: 'nose', test: () => touching([0]) },
-    { line: 'Touch your toes!', emoji: '🦶', part: 'toes', test: bentDown, before: () => noseY = poseSeen() ? S.pose[0].y : null },
-    { line: 'Touch your ears!', emoji: '👂', part: 'ears', test: () => touching([7, 8]) },
-    { line: 'Touch your belly button!', emoji: '👆', part: 'belly button', test: handOnBelly },
-    { line: 'Touch your nose again!', emoji: '👃', part: 'nose', test: () => touching([0]) },
-    { line: 'Wiggle your fingers!', emoji: '🖐️' },
+    { line: 'Touch your nose!', emoji: '👃', part: 'nose', test: touchingNose },
+    { line: 'Touch your toes!', emoji: '🦶' },
+    { line: 'Touch your ears!', emoji: '👂', part: 'ears', test: touchingEar },
+    { line: 'Touch your belly button!', emoji: '👆' },
+    { line: 'Touch your nose again!', emoji: '👃', part: 'nose', test: touchingNose },
+    { line: 'Wiggle your fingers!', emoji: '🖐️', test: handsSeen, nudge: `Hold up your hands and wiggle your fingers!` },
   ];
   for (const m of moves) {
     dock(`<div class="bigemoji">${m.emoji}</div>`);
-    m.before?.();
     await say(m.line);
-    const ok = m.test && (m.part !== 'toes' || noseY != null)
-      ? await expect(m.test, { hold: 250, timeout: 3500, fallback: 1300, nudges: [`Where's your ${m.part}? Touch it!`] })
-      : await sleep(1300);
-    if (ok) { sfx.pop(); await say(pick(['Yes!', 'Speedy!', 'Got it!', 'Zoom!', 'Wow!'])); }
+    const ok = m.test && vision.hands
+      ? await expect(m.test, { hold: 250, timeout: 3500, fallback: 1300, nudges: [m.nudge || `Where's your ${m.part}? Touch it!`] })
+      : (await sleep(1300), true);
+    if (ok !== false) { sfx.pop(); await say(pick(['Yes!', 'Speedy!', 'Got it!', 'Zoom!', 'Wow!'])); }
   }
   clearDock(); sfx.chime();
   await say(`Wow! Super speedy reflexes!`);
