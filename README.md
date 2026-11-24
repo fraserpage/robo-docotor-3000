@@ -2,6 +2,8 @@
 
 # Robo Doctor 3000
 
+**▶ Play it: https://fraserpage.github.io/robo-docotor-3000/**
+
 A pretend video-call checkup for a little one who is "too sick for school." A friendly robot doctor calls your child, runs a playful exam (temperature scan, "say AAAH", tongue, ears, heartbeat, blowing out candles, reflexes, kangaroo jumps), then reads out the result **you** chose on the parent screen.
 
 ## Use it
