@@ -1,0 +1,1226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1a24">
+<title>Robo Doctor 3000</title>
+<link rel="icon" href="assets/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --teal:#19b3b1; --teal-d:#0e8584; --ink:#1d2b3a; --muted:#5b6b7a; --line:#d6e2ea;
+  --green:#22c55e; --green-d:#15803d; --red:#ef4444; --red-d:#b91c1c; --sun:#ffc93c;
+  --dock-h:clamp(120px,19vh,170px);
+  --font:'Fredoka', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--font);color:var(--ink);background:#0f1a24;overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;cursor:pointer;touch-action:manipulation}
+.screen{position:fixed;inset:0;display:none}
+.screen.on{display:flex}
+
+/* ---------- Parent setup ---------- */
+#setup{background:linear-gradient(160deg,#e3f6f9,#fdf1fb);overflow:auto;padding:24px 16px;-webkit-user-select:text;user-select:text}
+.card{background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(20,60,90,.15);max-width:560px;width:100%;padding:28px;margin:auto}
+.card h1{margin:0;font-size:30px;display:flex;gap:14px;align-items:center;line-height:1.1}
+.card h1 .mini-doc{width:64px;height:64px;flex:none;background:#e3f6f9;border-radius:18px;padding:4px}
+.sub{color:var(--muted);margin:10px 0 4px;font-size:16px;line-height:1.45}
+.field{display:block;font-weight:600;margin:22px 0 8px;font-size:17px}
+input[type=text],select{width:100%;font:inherit;font-size:18px;padding:12px 14px;border:2px solid var(--line);border-radius:14px;background:#fff;color:var(--ink)}
+input[type=text]:focus,select:focus{outline:none;border-color:var(--teal)}
+.choices{display:grid;gap:10px}
+.choice{display:flex;gap:12px;align-items:flex-start;border:2px solid var(--line);border-radius:16px;padding:12px 14px;cursor:pointer}
+.choice input{margin-top:4px;width:20px;height:20px;accent-color:var(--teal);flex:none}
+.choice b{display:block;font-size:18px;font-weight:600}
+.choice span{color:var(--muted);font-size:14px;line-height:1.35}
+.choice:has(input:checked){border-color:var(--teal);background:#effbfb}
+.row{display:flex;gap:10px;align-items:center}
+.row select{flex:1}
+.check{display:flex;gap:10px;align-items:center;margin-top:14px;font-size:16px}
+.check input{width:20px;height:20px;accent-color:var(--teal)}
+.btn{border:0;border-radius:999px;padding:12px 18px;font-size:16px;font-weight:600}
+.btn.ghost{background:#eef3f7;color:var(--ink);white-space:nowrap}
+.btn.primary{background:var(--teal);color:#fff;width:100%;font-size:22px;padding:18px;margin-top:26px;box-shadow:0 6px 0 var(--teal-d)}
+.btn.primary:active{transform:translateY(4px);box-shadow:0 2px 0 var(--teal-d)}
+.btn.primary:disabled{opacity:.7}
+.tips{margin:22px 0 0;padding:14px 16px 14px 34px;font-size:14.5px;color:var(--muted);line-height:1.5;background:#f6f9fb;border-radius:14px}
+.tips li+li{margin-top:6px}
+.kbd{display:inline-block;border:1px solid #c5d3de;border-bottom-width:2px;border-radius:6px;padding:0 6px;font-size:12px;background:#fff}
+
+/* ---------- Ringing / ended ---------- */
+#ring,#end{background:radial-gradient(circle at 50% 35%,#24506b,#0f1a24 70%);color:#fff;flex-direction:column;align-items:center;justify-content:space-around;padding:6vh 16px 8vh;text-align:center}
+.avatar{width:min(42vmin,280px);aspect-ratio:1;border-radius:50%;background:#e3f6f9;display:grid;place-items:center;position:relative;margin:0 auto}
+.avatar svg{width:82%;height:82%;margin-top:8%}
+#ring .avatar{animation:bob 1.2s ease-in-out infinite}
+#ring .avatar::before,#ring .avatar::after{content:'';position:absolute;inset:0;border-radius:50%;border:5px solid rgba(127,246,255,.6);animation:ripple 2s ease-out infinite}
+#ring .avatar::after{animation-delay:1s}
+@keyframes ripple{from{transform:scale(1);opacity:1}to{transform:scale(1.65);opacity:0}}
+@keyframes bob{50%{transform:translateY(-10px) rotate(-3deg)}}
+.big-title{font-size:clamp(28px,6vmin,50px);font-weight:700;margin:22px 0 6px;line-height:1.1}
+.big-sub{font-size:clamp(18px,3.4vmin,26px);opacity:.8}
+.ring-btns{display:flex;gap:min(18vw,130px)}
+.ring-btns > div{display:flex;flex-direction:column;align-items:center;font-size:20px;gap:10px}
+.round{width:min(24vmin,130px);aspect-ratio:1;border-radius:50%;border:0;display:grid;place-items:center;color:#fff}
+.round svg{width:46%;height:46%;fill:#fff}
+.round.answer{background:var(--green);animation:pulse 1s infinite}
+.round.decline{background:var(--red)}
+.round.decline svg{transform:rotate(135deg)}
+@keyframes pulse{50%{transform:scale(1.1);box-shadow:0 0 0 18px rgba(34,197,94,.25)}}
+.shake{animation:shake .5s}
+@keyframes shake{20%,60%{transform:translateX(-12px)}40%,80%{transform:translateX(12px)}}
+.connecting .ring-btns{visibility:hidden}
+
+#end .verdict-mini{background:#fff;color:var(--ink);border-radius:24px;padding:18px 28px;font-size:clamp(20px,4vmin,30px);font-weight:600;box-shadow:0 10px 30px #0005}
+#end .verdict-mini .stamp{position:static;margin:8px auto 4px;display:inline-block;animation:none;transform:rotate(-6deg)}
+#end .again{background:#ffffff22;color:#fff;border:0;border-radius:999px;padding:12px 22px;font-size:16px}
+
+/* ---------- Call ---------- */
+#call{background:#0f1a24}
+.stage{position:absolute;inset:0;overflow:hidden;
+  background:
+    radial-gradient(ellipse at 50% 30%,#e9fbfb 0,transparent 60%),
+    linear-gradient(#cdeef0 0 74%,#8fcfd2 74% 75%,#a8dcdf 75%);}
+.stage::after{content:'';position:absolute;inset:0;background:#0f1a24;opacity:0;transition:opacity .5s;pointer-events:none}
+#call.focus .stage::after{opacity:.55}
+.eyechart{position:absolute;left:5%;top:16%;background:#fff;border-radius:10px;padding:10px 14px;text-align:center;font-weight:700;line-height:1.1;color:#334;box-shadow:0 4px 0 #0001;transform:rotate(-3deg)}
+.eyechart div:nth-child(1){font-size:clamp(24px,4vmin,40px)}
+.eyechart div:nth-child(2){font-size:clamp(16px,2.6vmin,26px)}
+.eyechart div:nth-child(3){font-size:clamp(11px,1.8vmin,18px)}
+.eyechart div:nth-child(4){font-size:clamp(8px,1.2vmin,12px)}
+.heartposter{position:absolute;left:6%;top:calc(16% + clamp(120px,20vmin,190px));font-size:clamp(34px,7vmin,70px);background:#fff;border-radius:14px;padding:4px 12px;transform:rotate(4deg);box-shadow:0 4px 0 #0001}
+.plant{position:absolute;left:3%;bottom:calc(25% - 10px);font-size:clamp(50px,11vmin,110px)}
+.docwrap{position:absolute;bottom:0;left:50%;height:min(80vh,125vw);transform:translateX(-50%);transition:transform .8s cubic-bezier(.3,1.2,.5,1)}
+.docwrap svg{height:100%;width:auto;display:block}
+@media (orientation:landscape){ #call.results .docwrap{transform:translateX(-50%) translateX(24vw)} }
+
+.topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;color:#fff;z-index:20;background:linear-gradient(#0f1a24cc,transparent)}
+.live{display:flex;align-items:center;gap:8px;font-weight:600;font-size:clamp(13px,2.2vmin,17px);white-space:nowrap}
+.live i{width:12px;height:12px;border-radius:50%;background:#ff4d4d;animation:blink 1.2s infinite;flex:none}
+@keyframes blink{50%{opacity:.25}}
+.progress{display:flex;gap:clamp(3px,1vmin,8px)}
+.progress span{width:clamp(28px,5.4vmin,46px);aspect-ratio:1;border-radius:50%;background:#ffffff26;display:grid;place-items:center;font-size:clamp(14px,2.8vmin,24px);filter:grayscale(1);opacity:.55;transition:all .3s}
+.progress span.now{background:var(--sun);filter:none;opacity:1;transform:scale(1.2)}
+.progress span.done{background:var(--green);filter:none;opacity:1}
+.gear{background:transparent;border:0;color:#ffffff70;font-size:22px;width:44px;height:44px;border-radius:50%;flex:none;position:relative}
+.gear.holding{color:#fff;background:#ffffff22}
+@media (max-width:560px){ .live b{display:none} }
+
+.self{position:absolute;right:16px;top:70px;width:clamp(130px,25vw,290px);aspect-ratio:4/3;border-radius:18px;overflow:hidden;background:#2b4357;border:4px solid #fff;box-shadow:0 8px 30px #0006;z-index:10;
+  transition:all .6s cubic-bezier(.3,1.2,.5,1)}
+#call.focus .self{right:50%;top:calc(50% - var(--dock-h) / 2);transform:translate(50%,-50%);width:min(82vw,calc((100vh - var(--dock-h) - 190px) * 4 / 3));border-width:6px;border-radius:26px}
+.self video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.nocam{position:absolute;inset:0;display:none;place-items:center;color:#fff;text-align:center;font-size:clamp(12px,2vmin,16px)}
+.nocam div{font-size:clamp(40px,10vmin,100px);line-height:1.1}
+.self.off .nocam{display:grid}
+.self.off video{display:none}
+.self .you{position:absolute;left:8px;bottom:6px;color:#fff;font-size:13px;font-weight:600;text-shadow:0 1px 3px #000a}
+.scanline{position:absolute;left:0;right:0;height:16%;top:0;display:none;background:linear-gradient(transparent,rgba(127,246,255,.85),transparent);box-shadow:0 0 30px rgba(127,246,255,.9);animation:scan 1.1s ease-in-out infinite alternate}
+.self.scanning .scanline{display:block}
+.self.scanning::before{content:'';position:absolute;inset:0;z-index:1;background:repeating-linear-gradient(0deg,rgba(127,246,255,.08) 0 2px,transparent 2px 6px)}
+@keyframes scan{from{top:-8%}to{top:92%}}
+.thermo{position:absolute;right:4%;top:10%;bottom:16%;width:clamp(18px,4%,34px);background:#fff;border-radius:999px;padding:4px;display:none;flex-direction:column;justify-content:flex-end;box-shadow:0 2px 10px #0005}
+.thermo::after{content:'';position:absolute;left:50%;bottom:-14%;width:180%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:var(--tcolor,#22c55e);border:4px solid #fff}
+.thermo i{display:block;border-radius:999px;background:var(--tcolor,#22c55e);height:var(--t,0%);transition:height 2.4s ease-out}
+.self.thermo-on .thermo{display:flex}
+.magnify{position:absolute;inset:0;display:none;pointer-events:none;
+  background:radial-gradient(circle at 50% 58%,transparent 0 26%,rgba(255,255,255,.95) 26.5% 28.5%,rgba(15,26,36,.45) 29%)}
+.self.magnify-on .magnify{display:block}
+.light{position:absolute;top:0;bottom:0;left:-40%;right:-40%;display:none;pointer-events:none;background:radial-gradient(circle at 50% 50%,rgba(255,250,200,.6) 0 12%,transparent 24%);animation:sweep 2.4s ease-in-out infinite alternate}
+.self.light-on .light{display:block}
+@keyframes sweep{from{transform:translateX(-14%)}to{transform:translateX(14%)}}
+.dbg{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none;z-index:2;display:none}
+.dbgtext{position:absolute;left:8px;top:6px;z-index:2;display:none;color:#fff;font:600 12px/1.3 ui-monospace,monospace;text-shadow:0 1px 2px #000;white-space:pre}
+.self.debug .dbg,.self.debug .dbgtext{display:block}
+.vstatus{margin-top:14px;font-size:14px;color:var(--muted)}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.flash.go{animation:flash .5s}
+@keyframes flash{from{opacity:1}to{opacity:0}}
+.olabel{position:absolute;left:50%;bottom:8%;transform:translateX(-50%) scale(0);background:#fff;color:var(--ink);font-weight:700;border-radius:999px;padding:8px 18px;font-size:clamp(16px,3.4vmin,30px);white-space:nowrap;transition:transform .4s cubic-bezier(.3,1.6,.5,1);z-index:3;box-shadow:0 4px 14px #0005}
+.olabel.show{transform:translateX(-50%) scale(1)}
+
+.caption{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--dock-h) + 6px);width:max-content;max-width:min(92vw,780px);background:#fff;border-radius:22px;padding:12px 22px;font-size:clamp(17px,3.1vmin,28px);font-weight:500;line-height:1.3;box-shadow:0 6px 24px #0003;z-index:12;text-align:center;transition:opacity .3s}
+.caption:empty{opacity:0}
+.caption::after{content:'';position:absolute;left:50%;top:-10px;margin-left:-10px;border:10px solid transparent;border-top:0;border-bottom-color:#fff}
+
+.dock{position:absolute;left:0;right:0;bottom:0;height:var(--dock-h);display:flex;align-items:center;justify-content:center;gap:16px;z-index:15;padding:0 16px 10px}
+.bigbtn{font-size:clamp(22px,4.4vmin,36px);font-weight:700;border:0;border-radius:999px;padding:clamp(14px,2.4vmin,22px) clamp(28px,5vmin,48px);color:#fff;background:var(--green);box-shadow:0 8px 0 var(--green-d),0 12px 30px #0004;display:flex;align-items:center;gap:12px;animation:popin .45s cubic-bezier(.3,1.6,.5,1),wiggle 2.4s 1.5s infinite}
+.bigbtn:active{transform:translateY(5px);box-shadow:0 3px 0 var(--green-d)}
+.bigbtn.red{background:var(--red);box-shadow:0 8px 0 var(--red-d),0 12px 30px #0004}
+@keyframes popin{from{transform:scale(0)}}
+@keyframes wiggle{0%,86%,100%{transform:rotate(0)}90%{transform:rotate(-4deg)}95%{transform:rotate(4deg)}}
+
+.meter{display:flex;align-items:center;gap:16px;width:min(720px,92vw);background:#ffffffe6;border-radius:999px;padding:10px 18px;box-shadow:0 8px 24px #0003;animation:popin .4s}
+.m-icon{font-size:clamp(36px,7vmin,60px);transition:transform .08s;flex:none}
+.m-bar{flex:1;height:clamp(22px,4vmin,36px);background:#e2ebf1;border-radius:999px;overflow:hidden;position:relative}
+.m-fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#22c55e,#ffc93c,#ff6b8b);transition:width .15s}
+.mini{border:0;background:#eef3f7;border-radius:999px;padding:10px 16px;font-size:16px;font-weight:600;visibility:hidden;flex:none}
+.mini.show{visibility:visible}
+
+.candles{display:flex;gap:clamp(20px,6vmin,60px);align-items:flex-end;animation:popin .4s}
+.candle{position:relative;width:clamp(30px,5.5vmin,48px);height:clamp(70px,11vmin,110px);border-radius:8px 8px 4px 4px;border:0;padding:0;
+  background:repeating-linear-gradient(135deg,#ff8fab 0 10px,#fff 10px 20px);box-shadow:0 6px 0 #0002}
+.candle:nth-child(2){background:repeating-linear-gradient(135deg,#7dd3fc 0 10px,#fff 10px 20px)}
+.candle:nth-child(3){background:repeating-linear-gradient(135deg,#fde047 0 10px,#fff 10px 20px)}
+.candle::before{content:'';position:absolute;left:50%;top:-10px;width:3px;height:12px;background:#333;transform:translateX(-50%)}
+.candle .flame{position:absolute;left:50%;bottom:calc(100% + 8px);width:26px;height:40px;margin-left:-13px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;
+  background:radial-gradient(circle at 50% 75%,#fff7c2 0 25%,#ffc93c 45%,#ff7a1a 75%);box-shadow:0 0 24px 8px rgba(255,190,60,.6);animation:flicker .15s infinite alternate;transform-origin:50% 100%}
+@keyframes flicker{to{transform:scale(.92,1.06) rotate(2deg)}}
+.candle.out .flame{animation:none;opacity:0;transition:opacity .3s}
+.candle.out::after{content:'💨';position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);font-size:28px;animation:smoke 1.2s forwards}
+@keyframes smoke{to{transform:translate(-50%,-40px);opacity:0}}
+
+.bigemoji{font-size:clamp(60px,12vmin,110px);animation:popin .35s cubic-bezier(.3,1.6,.5,1);filter:drop-shadow(0 6px 10px #0003)}
+.heart{font-size:clamp(70px,13vmin,120px);filter:drop-shadow(0 6px 12px #e11d4855)}
+.heart.beat{animation:beat .45s}
+@keyframes beat{15%{transform:scale(1.35)}30%{transform:scale(1)}45%{transform:scale(1.2)}70%{transform:scale(1)}}
+.counter{display:flex;align-items:center;gap:18px;width:min(720px,92vw);background:#ffffffe6;border-radius:999px;padding:8px 22px 8px 12px;box-shadow:0 8px 24px #0003}
+.counter .num{font-size:clamp(40px,8vmin,70px);font-weight:700;width:1.6em;text-align:center;color:var(--teal-d)}
+.analyze{width:min(600px,90vw);text-align:center;background:#ffffffe6;border-radius:24px;padding:14px 22px;box-shadow:0 8px 24px #0003}
+.analyze .amsg{font-size:clamp(18px,3.2vmin,26px);font-weight:600;margin-top:10px}
+.analyze .m-fill{background:repeating-linear-gradient(45deg,var(--teal) 0 14px,#3dd6d3 14px 28px);transition:width .8s}
+
+.report{position:absolute;z-index:14;left:50%;top:70px;transform:translateX(-50%);width:min(500px,92vw);display:none}
+@media (orientation:landscape){ .report{left:4vw;transform:none;width:min(480px,46vw)} }
+#call.results .report{display:block;animation:popin .5s cubic-bezier(.3,1.3,.5,1)}
+#call.results .self{opacity:0;pointer-events:none}
+.rc{background:#fffdf6;border-radius:22px;padding:16px 20px 20px;box-shadow:0 12px 40px #0005;position:relative;border:3px solid #f0e6c8}
+.rc-head{font-weight:700;font-size:clamp(16px,2.6vmin,22px);color:var(--teal-d)}
+.rc-name{color:var(--muted);font-size:14px;margin-top:2px}
+.rc ul{list-style:none;padding:0;margin:12px 0 6px;display:grid;gap:6px}
+.rc li{display:flex;align-items:center;gap:10px;font-size:clamp(14px,2.3vmin,19px);opacity:0;animation:fadein .3s forwards}
+.rc li .ic{width:1.6em;text-align:center;font-size:1.2em}
+.rc li .res{margin-left:auto;font-weight:600;white-space:nowrap}
+@keyframes fadein{to{opacity:1}}
+.stamp{position:absolute;right:16px;bottom:16px;border:6px solid var(--sc,#22c55e);color:var(--sc,#22c55e);border-radius:14px;padding:6px 14px;font-size:clamp(22px,4.4vmin,40px);font-weight:700;letter-spacing:1px;background:#fffdf6e6;
+  transform:rotate(-10deg) scale(4);opacity:0;animation:stamp .45s 1.9s cubic-bezier(.5,0,.6,1.4) forwards;text-align:center;line-height:1}
+@keyframes stamp{to{transform:rotate(-10deg) scale(1);opacity:1}}
+.rc-school{margin-top:10px;font-size:clamp(16px,2.8vmin,24px);font-weight:600;min-height:2.6em;padding-right:42%}
+
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
+#confetti i{position:absolute;top:-24px;width:10px;height:16px;border-radius:2px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(800deg)}}
+
+/* doctor robot */
+.doc .bot{transform-box:fill-box;transform-origin:50% 100%;animation:sway 3.2s ease-in-out infinite}
+@keyframes sway{50%{transform:rotate(1.4deg)}}
+.doc .eyes{transform-box:fill-box;transform-origin:center;animation:blinkEyes 4.6s infinite}
+@keyframes blinkEyes{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+.doc .eye-happy{display:none}
+.doc.happy .eye-happy{display:inline}
+.doc.happy .eye-open{display:none}
+.doc .mouth{transform-box:fill-box;transform-origin:center}
+.doc.talking .mouth{animation:talk .2s ease-in-out infinite alternate}
+@keyframes talk{from{transform:scale(1,.6)}to{transform:scale(.8,2.6)}}
+.doc .ant{animation:blink 1s infinite}
+.doc.thinking .eye-open{animation:look .7s ease-in-out infinite alternate}
+.doc.thinking .ant{animation:blink .25s infinite}
+@keyframes look{from{transform:translateX(-12px)}to{transform:translateX(12px)}}
+
+/* parent menu */
+.pmenu{position:fixed;inset:0;z-index:50;background:#0f1a24aa;display:none;align-items:center;justify-content:center;padding:16px}
+.pmenu.on{display:flex}
+.pmenu .card{max-width:440px}
+.pmenu h2{margin:0 0 4px;font-size:22px}
+.pmenu .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.pmenu .actions .btn{padding:14px}
+.btn.danger{background:#fee2e2;color:var(--red-d)}
+.btn.go{background:var(--teal);color:#fff}
+.pmenu .wide{grid-column:1/-1}
+
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important;animation-iteration-count:1!important} }
+</style>
+</head>
+<body>
+
+<!-- ============ PARENT SETUP ============ -->
+<section id="setup" class="screen on">
+  <div class="card">
+    <h1><span class="mini-doc" data-doc></span>Robo Doctor 3000</h1>
+    <p class="sub">A pretend video-call checkup for little ones who are "too sick for school." You pick the result before you hand over the device. The robot just delivers it.</p>
+
+    <label class="field" for="kidName">Your child's name</label>
+    <input type="text" id="kidName" placeholder="e.g. Sam" autocomplete="off">
+
+    <div class="field">Today's result</div>
+    <div class="choices" id="verdictChoices"></div>
+
+    <label class="field" for="voiceSel">Doctor's voice</label>
+    <div class="row">
+      <select id="voiceSel"><option value="">Automatic</option></select>
+      <button class="btn ghost" id="testVoice" type="button">🔊 Test</button>
+    </div>
+
+    <label class="check"><input type="checkbox" id="useCam" checked> Use camera &amp; microphone (nothing is recorded or sent anywhere)</label>
+
+    <button class="btn primary" id="startBtn" type="button">📞 Start the call</button>
+
+    <ul class="tips">
+      <li>When it starts ringing, hand the device to your child to answer.</li>
+      <li><b>Secret parent menu:</b> press and hold the ⚙︎ in the top-right corner during the call (or press <span class="kbd">P</span>). From there you can change the result, skip a test or end the call.</li>
+      <li>Turn the sound up. The doctor talks, beeps and listens for big "AAAH"s and candle-blowing.</li>
+      <li>With the camera on, the doctor watches for open mouths, head turns, hands on noses and real jumps, and gently asks again if your child doesn't do it. Prop the device up so your child's head and shoulders are in view.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ RINGING ============ -->
+<section id="ring" class="screen">
+  <div>
+    <div class="avatar" data-doc></div>
+    <div class="big-title" id="ringTitle">Robo Doctor 3000</div>
+    <div class="big-sub" id="ringSub">is calling you!</div>
+  </div>
+  <div class="ring-btns">
+    <div><button class="round decline" id="declineBtn" aria-label="Decline"><svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg></button>No</div>
+    <div><button class="round answer" id="answerBtn" aria-label="Answer"><svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg></button>Answer</div>
+  </div>
+</section>
+
+<!-- ============ CALL ============ -->
+<section id="call" class="screen">
+  <div class="stage">
+    <div class="eyechart"><div>E</div><div>F P</div><div>T O Z</div><div>L P E D</div></div>
+    <div class="heartposter">🩺</div>
+    <div class="plant">🪴</div>
+    <div class="docwrap" id="docwrap"></div>
+  </div>
+
+  <div class="topbar">
+    <div class="live"><i></i><span id="clock">00:00</span><b>&nbsp;· Robo Doctor 3000</b></div>
+    <div class="progress" id="progress"></div>
+    <button class="gear" id="gear" aria-label="Parent menu (press and hold)">⚙︎</button>
+  </div>
+
+  <div class="self off" id="self">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="nocam"><div>🧒</div></div>
+    <div class="scanline"></div>
+    <div class="magnify"></div>
+    <div class="light"></div>
+    <div class="thermo"><i></i></div>
+    <canvas class="dbg" id="trackDots"></canvas>
+    <div class="dbgtext" id="trackText"></div>
+    <div class="flash" id="flash"></div>
+    <div class="olabel" id="olabel"></div>
+    <div class="you" id="youLabel">You</div>
+  </div>
+
+  <div class="report" id="report"></div>
+  <div class="caption" id="caption"></div>
+  <div class="dock" id="dock"></div>
+</section>
+
+<!-- ============ ENDED ============ -->
+<section id="end" class="screen">
+  <div>
+    <div class="avatar" data-doc></div>
+    <div class="big-title">Call ended</div>
+    <div class="big-sub" id="endSub"></div>
+  </div>
+  <div class="verdict-mini" id="endVerdict"></div>
+  <button class="again" id="againBtn">↩︎ Back to parent setup</button>
+</section>
+
+<div class="pmenu" id="pmenu">
+  <div class="card">
+    <h2>Parent menu</h2>
+    <p class="sub" style="margin-top:0">Changing the result here takes effect right away, even mid-checkup.</p>
+    <div class="choices" id="pmenuChoices"></div>
+    <div class="vstatus" id="vstatus"></div>
+    <label class="check"><input type="checkbox" id="dbgToggle"> Show tracking dots on the camera (<span class="kbd">D</span>)</label>
+    <div class="actions">
+      <button class="btn ghost" id="pmSkip">⏭ Skip this test</button>
+      <button class="btn danger" id="pmEnd">✕ End call</button>
+      <button class="btn go wide" id="pmClose">Back to the checkup</button>
+    </div>
+  </div>
+</div>
+
+<div id="confetti"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+/* ================= Doctor artwork ================= */
+const DOCTOR_SVG = `
+<svg class="doc" viewBox="0 0 400 440" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+ <g class="bot">
+  <line x1="200" y1="62" x2="200" y2="28" stroke="#9fb3c3" stroke-width="8" stroke-linecap="round"/>
+  <circle class="ant" cx="200" cy="20" r="13" fill="#ff5d7a"/>
+  <rect x="62" y="118" width="32" height="66" rx="13" fill="#9fb3c3"/>
+  <rect x="306" y="118" width="32" height="66" rx="13" fill="#9fb3c3"/>
+  <rect x="86" y="58" width="228" height="182" rx="48" fill="#eef4f8" stroke="#b7c8d6" stroke-width="6"/>
+  <rect x="112" y="84" width="176" height="130" rx="32" fill="#16283a"/>
+  <g class="eyes">
+   <g class="eye-open">
+    <ellipse cx="162" cy="140" rx="18" ry="23" fill="#7ff6ff"/>
+    <ellipse cx="238" cy="140" rx="18" ry="23" fill="#7ff6ff"/>
+    <circle cx="168" cy="132" r="6" fill="#fff"/>
+    <circle cx="244" cy="132" r="6" fill="#fff"/>
+   </g>
+   <g class="eye-happy" fill="none" stroke="#7ff6ff" stroke-width="9" stroke-linecap="round">
+    <path d="M144 148 Q162 118 180 148"/>
+    <path d="M220 148 Q238 118 256 148"/>
+   </g>
+  </g>
+  <circle cx="134" cy="180" r="11" fill="#ff8fab" opacity=".6"/>
+  <circle cx="266" cy="180" r="11" fill="#ff8fab" opacity=".6"/>
+  <rect class="mouth" x="176" y="178" width="48" height="12" rx="6" fill="#7ff6ff"/>
+  <rect x="176" y="238" width="48" height="24" fill="#b7c8d6"/>
+  <path d="M66 440 Q66 266 200 258 Q334 266 334 440 Z" fill="#fff" stroke="#d3dfe8" stroke-width="5"/>
+  <path d="M162 260 L200 330 L238 260 Z" fill="#19b3b1"/>
+  <path d="M162 260 L200 330 L178 440" fill="none" stroke="#d3dfe8" stroke-width="5"/>
+  <path d="M238 260 L200 330 L222 440" fill="none" stroke="#d3dfe8" stroke-width="5"/>
+  <path d="M148 264 Q118 340 172 374" fill="none" stroke="#5b6b7a" stroke-width="7" stroke-linecap="round"/>
+  <path d="M252 264 Q282 340 228 374" fill="none" stroke="#5b6b7a" stroke-width="7" stroke-linecap="round"/>
+  <path d="M172 374 Q200 392 228 374" fill="none" stroke="#5b6b7a" stroke-width="7"/>
+  <circle cx="200" cy="396" r="17" fill="#c9d4dd" stroke="#5b6b7a" stroke-width="6"/>
+  <rect x="250" y="300" width="62" height="26" rx="6" fill="#ff5d7a"/>
+  <text x="281" y="318" font-size="14" font-weight="700" fill="#fff" text-anchor="middle" font-family="Fredoka, sans-serif">RD-3000</text>
+  <g transform="translate(112 312)"><rect x="-4" y="-12" width="8" height="24" rx="2" fill="#ff5d7a"/><rect x="-12" y="-4" width="24" height="8" rx="2" fill="#ff5d7a"/></g>
+ </g>
+</svg>`;
+$$('[data-doc]').forEach(el => el.innerHTML = DOCTOR_SVG);
+$('#docwrap').innerHTML = DOCTOR_SVG;
+const docEl = $('#docwrap svg');
+
+/* ================= Settings ================= */
+const STORE = 'robo-doctor-3000';
+const settings = (() => { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; } })();
+const saveSettings = () => { try { localStorage.setItem(STORE, JSON.stringify(settings)); } catch {} };
+
+const VERDICTS = {
+  healthy: {
+    title: 'Healthy: go to school', desc: 'Every test passes. "You are NOT sick!"',
+    stamp: 'HEALTHY!', color: '#16a34a', school: 'Ready for school! 🎒', flags: {},
+    lines: n => [
+      `Beep boop! I have the answer!`,
+      `Great news, ${n}. You are NOT sick!`,
+      `You are healthy and strong, and your body is ready for school.`,
+      `Doctor's orders: go to school and have a super fun day!`,
+    ],
+  },
+  tiny: {
+    title: 'A teeny bit sick: still OK for school', desc: 'Acknowledges the sniffles, but school is still on.',
+    stamp: 'TINY BIT SNIFFLY', color: '#d97706', school: 'Still OK for school! 🎒', flags: { ahh: true },
+    lines: n => [
+      `Beep boop! I have the answer!`,
+      `${n}, you have a teeny, tiny, itty-bitty bit of sniffles.`,
+      `That kind of sniffles is so small, you can still go to school!`,
+      `Drink some water, and have a super fun day.`,
+    ],
+  },
+  sick: {
+    title: 'Sick: rest day at home', desc: 'For days they really are unwell. Gentle, no confetti.',
+    stamp: 'REST DAY', color: '#6366f1', school: 'Stay home and rest 🧸', flags: { temp: true, ahh: true },
+    lines: n => [
+      `Beep boop. I have the answer.`,
+      `${n}, your body needs a rest day today.`,
+      `Stay home, drink lots of water, and get lots of cuddles.`,
+      `You will feel better soon. You were so brave today!`,
+    ],
+  },
+};
+if (!VERDICTS[settings.verdict]) settings.verdict = 'healthy';
+const V = () => VERDICTS[settings.verdict];
+const N = () => settings.name || 'friend';
+
+function renderChoices(container, name) {
+  container.innerHTML = Object.entries(VERDICTS).map(([k, v]) => `
+    <label class="choice"><input type="radio" name="${name}" value="${k}" ${settings.verdict === k ? 'checked' : ''}>
+      <div><b>${v.title}</b><span>${v.desc}</span></div></label>`).join('');
+  container.onchange = e => { settings.verdict = e.target.value; saveSettings(); syncChoices(); };
+}
+function syncChoices() { $$('.choices input').forEach(i => i.checked = i.value === settings.verdict); }
+renderChoices($('#verdictChoices'), 'verdict');
+renderChoices($('#pmenuChoices'), 'pverdict');
+$('#kidName').value = settings.name || '';
+$('#useCam').checked = settings.useCam !== false;
+
+/* ================= Sound effects ================= */
+let ac = null;
+function initAudio() {
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch { ac = null; }
+}
+function tone(freq, dur, type = 'sine', vol = .2, delay = 0, slideTo = null) {
+  if (!ac) return;
+  const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + .02);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .05);
+}
+function noise(dur, vol) {
+  if (!ac) return;
+  const len = Math.floor(ac.sampleRate * dur), b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const s = ac.createBufferSource(), g = ac.createGain(); g.gain.value = vol;
+  s.buffer = b; s.connect(g).connect(ac.destination); s.start();
+}
+const sfx = {
+  beep()   { tone(660, .1, 'square', .06); tone(990, .12, 'square', .06, .12); },
+  boop()   { tone(520, .12, 'square', .06); tone(390, .16, 'square', .06, .13); },
+  pop()    { tone(700, .1, 'sine', .2, 0, 1500); },
+  scan()   { tone(300, 1.3, 'sawtooth', .035, 0, 1200); tone(1200, 1.3, 'sawtooth', .035, 1.35, 300); },
+  thump()  { tone(80, .16, 'sine', .7, 0, 50); tone(70, .18, 'sine', .55, .2, 45); },
+  chime()  { [523, 659, 784, 1047].forEach((f, i) => tone(f, .35, 'triangle', .16, i * .11)); },
+  tada()   { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .5, 'triangle', .16, i * .09)); tone(1047, 1, 'triangle', .14, .5); },
+  soft()   { [523, 440, 392, 523].forEach((f, i) => tone(f, .6, 'sine', .14, i * .25)); },
+  shutter(){ noise(.12, .35); },
+  whoosh() { noise(.45, .25); },
+  hangup() { tone(480, .25, 'sine', .15); tone(380, .4, 'sine', .15, .28); },
+  boing()  { tone(260, .28, 'sine', .25, 0, 900); },
+  ring()   { for (let k = 0; k < 2; k++) { tone(880, .38, 'sine', .13, k * .48); tone(1320, .38, 'sine', .06, k * .48); } },
+};
+
+/* ================= Speech ================= */
+const hasTTS = 'speechSynthesis' in window;
+const PREFS = ['Samantha', 'Google US English', 'Microsoft Aria', 'Microsoft Jenny', 'Karen', 'Moira', 'Tessa', 'Serena', 'Google UK English Female', 'Daniel', 'Microsoft Zira'];
+const englishVoices = () => hasTTS ? speechSynthesis.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang)) : [];
+function chooseVoice() {
+  const vs = englishVoices();
+  if (settings.voice) { const v = vs.find(v => v.name === settings.voice); if (v) return v; }
+  for (const p of PREFS) { const v = vs.find(v => v.name.includes(p)); if (v) return v; }
+  return vs.find(v => v.default) || vs[0] || null;
+}
+function fillVoices() {
+  const sel = $('#voiceSel'), vs = englishVoices();
+  sel.innerHTML = '<option value="">Automatic</option>' +
+    vs.map(v => `<option value="${v.name.replace(/"/g, '&quot;')}">${v.name} (${v.lang})</option>`).join('');
+  sel.value = vs.some(v => v.name === settings.voice) ? settings.voice : '';
+}
+if (hasTTS) { fillVoices(); speechSynthesis.addEventListener?.('voiceschanged', fillVoices); }
+$('#voiceSel').onchange = e => { settings.voice = e.target.value; saveSettings(); };
+
+const liveUtterances = new Set(); // keeps utterances alive (Chrome can drop onend otherwise)
+function speak(text) {
+  return new Promise(res => {
+    let finished = false, timer = null, u = null;
+    const done = () => { if (finished) return; finished = true; clearTimeout(timer); liveUtterances.delete(u); res(); };
+    if (!hasTTS) { timer = setTimeout(done, 500 + text.length * 55); return; }
+    timer = setTimeout(done, 3000 + text.length * 100); // safety net if onend never fires
+    u = new SpeechSynthesisUtterance(text);
+    const v = chooseVoice(); if (v) { u.voice = v; u.lang = v.lang; }
+    u.pitch = 1.2; u.rate = .95;
+    u.onend = done; u.onerror = done;
+    liveUtterances.add(u);
+    speechSynthesis.speak(u);
+  });
+}
+function unlockSpeech() {
+  if (!hasTTS) return;
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch {}
+}
+$('#testVoice').onclick = () => { initAudio(); if (hasTTS) speechSynthesis.cancel(); sfx.beep(); speak(`Beep boop! Hello ${N()}! I am Robo Doctor 3000.`); };
+
+/* ================= Camera & microphone ================= */
+const video = $('#video');
+let stream = null, analyser = null, abuf = null;
+let hasVideo = false, hasMic = false;
+async function initMedia() {
+  if (!$('#useCam').checked || !navigator.mediaDevices?.getUserMedia) return;
+  if (stream) return; // already running from an earlier call
+  const audio = { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
+  const vid = { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } };
+  for (const c of [{ video: vid, audio }, { video: vid }, { audio }]) {
+    try { stream = await navigator.mediaDevices.getUserMedia(c); break; } catch {}
+  }
+  if (!stream) return;
+  hasVideo = stream.getVideoTracks().length > 0;
+  hasMic = stream.getAudioTracks().length > 0;
+  if (hasVideo) { video.srcObject = new MediaStream(stream.getVideoTracks()); video.play().catch(() => {}); $('#self').classList.remove('off'); }
+  if (hasMic && ac) {
+    try {
+      const src = ac.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+      analyser = ac.createAnalyser(); analyser.fftSize = 1024;
+      abuf = new Float32Array(analyser.fftSize);
+      src.connect(analyser);
+    } catch { hasMic = false; }
+  } else hasMic = false;
+}
+function micLevel() {
+  if (!analyser) return 0;
+  analyser.getFloatTimeDomainData(abuf);
+  let s = 0; for (const x of abuf) s += x * x;
+  return Math.sqrt(s / abuf.length);
+}
+const mcan = document.createElement('canvas'); mcan.width = 48; mcan.height = 36;
+const mctx = mcan.getContext('2d', { willReadFrequently: true });
+let prevFrame = null;
+function motionLevel() {
+  if (!hasVideo || video.readyState < 2) return 0;
+  mctx.drawImage(video, 0, 0, 48, 36);
+  const d = mctx.getImageData(0, 0, 48, 36).data, cur = new Uint8Array(48 * 36);
+  let sum = 0;
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+    cur[j] = (d[i] * 3 + d[i + 1] * 4 + d[i + 2]) >> 3;
+    if (prevFrame) sum += Math.abs(cur[j] - prevFrame[j]);
+  }
+  prevFrame = cur;
+  return sum / (48 * 36 * 255);
+}
+
+/* ================= Vision: MediaPipe face + pose, all on-device ================= */
+const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const FACE_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const POSE_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const vision = { status: 'off', face: null, pose: null, wantPose: false };
+// Latest readings. `turn` and `jaw` keep their last value when the face is lost.
+const S = { face: null, faceAt: 0, jaw: 0, puff: 0, pucker: 0, turn: 0, move: 0, pose: null, poseAt: 0 };
+const now = () => performance.now();
+const visionOn = () => vision.status === 'ready' && hasVideo;
+const faceSeen = () => !!S.face && now() - S.faceAt < 600;
+const poseSeen = () => !!S.pose && now() - S.poseAt < 600;
+const anyoneSeen = () => faceSeen() || poseSeen();
+
+async function initVision() {
+  if (!hasVideo || vision.status !== 'off') return;
+  vision.status = 'loading'; updateVisionStatus();
+  try {
+    const mp = await import(`${MP_BASE}/vision_bundle.mjs`);
+    const files = await mp.FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
+    const make = async (Task, model, extra) => {
+      const opts = delegate => ({ baseOptions: { modelAssetPath: model, delegate }, runningMode: 'VIDEO', ...extra });
+      try { return await Task.createFromOptions(files, opts('GPU')); }
+      catch { return await Task.createFromOptions(files, opts('CPU')); }
+    };
+    [vision.face, vision.pose] = await Promise.all([
+      make(mp.FaceLandmarker, FACE_MODEL, { numFaces: 1, outputFaceBlendshapes: true }),
+      make(mp.PoseLandmarker, POSE_MODEL, { numPoses: 1 }),
+    ]);
+    vision.status = 'ready';
+    requestAnimationFrame(visionLoop);
+  } catch (e) {
+    console.warn('Motion sensing unavailable; using timers instead.', e);
+    vision.status = 'failed';
+  }
+  updateVisionStatus();
+}
+function updateVisionStatus() {
+  $('#vstatus').textContent = 'Motion sensing: ' + ({
+    off: hasVideo ? 'off' : 'off (no camera), so tests run on timers',
+    loading: 'loading…', ready: 'on ✓',
+    failed: "couldn't load, so tests run on timers",
+  })[vision.status];
+}
+
+let lastFrameAt = 0;
+function visionLoop() {
+  requestAnimationFrame(visionLoop);
+  const t = now();
+  if (!$('#call').classList.contains('on') || video.readyState < 2 || t - lastFrameAt < 66) return; // ~15 fps
+  lastFrameAt = t;
+  try { readFace(vision.face.detectForVideo(video, t), t); } catch {}
+  if (vision.wantPose) { try { readPose(vision.pose.detectForVideo(video, t), t); } catch {} }
+  drawDebug();
+}
+function readFace(r, t) {
+  const lm = r.faceLandmarks?.[0];
+  if (!lm) { S.face = null; return; }
+  const bs = {};
+  for (const c of r.faceBlendshapes?.[0]?.categories || []) bs[c.categoryName] = c.score;
+  const nose = lm[1], a = lm[234], b = lm[454]; // nose tip, left and right edge of the face
+  const w = Math.abs(b.x - a.x) || 1e-3, cx = (a.x + b.x) / 2, cy = nose.y;
+  S.move = S.face ? S.move * .7 + Math.hypot(cx - S.face.cx, cy - S.face.cy) / w * .3 : 0;
+  S.face = { cx, cy, w, lm }; S.faceAt = t;
+  S.jaw = bs.jawOpen || 0; S.puff = bs.cheekPuff || 0; S.pucker = bs.mouthPucker || 0;
+  S.turn = (nose.x - Math.min(a.x, b.x)) / w - .5; // ≈0 facing the camera, toward ±.5 when turned
+}
+function readPose(r, t) {
+  const lm = r.landmarks?.[0];
+  if (!lm) { S.pose = null; return; }
+  S.pose = lm; S.poseAt = t;
+  trackJumps(lm);
+}
+
+/* Pose geometry. Landmark ids: 0 nose, 7/8 ears, 11/12 shoulders, 15/16 wrists, 17-20 hand points. */
+const HANDS = [15, 16, 17, 18, 19, 20];
+const visible = p => p && (p.visibility ?? 1) > .5;
+const aspect = () => (video.videoWidth / video.videoHeight) || 4 / 3;
+const dist = (p, q) => Math.hypot((p.x - q.x) * aspect(), p.y - q.y);
+function shoulders(lm) {
+  const l = lm[11], r = lm[12];
+  if (!visible(l) || !visible(r)) return null;
+  return { l, r, w: dist(l, r), y: (l.y + r.y) / 2, minX: Math.min(l.x, r.x), maxX: Math.max(l.x, r.x) };
+}
+/** A hand is close to any of the target landmarks (nose, ears). */
+function touching(targets) {
+  const lm = poseSeen() && S.pose; if (!lm) return false;
+  const scale = dist(lm[7], lm[8]) || .1;
+  return HANDS.some(h => visible(lm[h]) && targets.some(t => dist(lm[h], lm[t]) < .6 * scale));
+}
+/** A hand is in a band of the torso: from `top` to `bottom` shoulder-widths below the shoulders. */
+function handOnTorso(top, bottom) {
+  const lm = poseSeen() && S.pose; if (!lm) return false;
+  const s = shoulders(lm); if (!s) return false;
+  const pad = .1 * (s.maxX - s.minX);
+  return HANDS.some(h => {
+    const p = lm[h];
+    return visible(p) && p.x > s.minX - pad && p.x < s.maxX + pad && p.y > s.y + top * s.w && p.y < s.y + bottom * s.w;
+  });
+}
+const handOnChest = () => handOnTorso(-.05, .8);
+const handOnBelly = () => handOnTorso(.8, 2);
+
+/** Counts jumps: shoulders rise well above their resting height, then come back down. */
+const J = { base: null, up: false, onJump: null };
+function trackJumps(lm) {
+  const s = shoulders(lm); if (!s) return;
+  if (J.base == null) J.base = s.y;
+  if (!J.up && s.y < J.base - .25 * s.w) J.up = true;
+  else if (J.up && s.y > J.base - .08 * s.w) { J.up = false; J.onJump?.(); }
+  if (!J.up) J.base = J.base * .9 + s.y * .1;
+}
+
+/* Debug overlay: press D, or tick the box in the parent menu. */
+let debugOn = false;
+const trackDots = $('#trackDots'), dotsCtx = trackDots.getContext('2d');
+function setDebug(on) { debugOn = on; $('#self').classList.toggle('debug', on); $('#dbgToggle').checked = on; }
+function drawDebug() {
+  if (!debugOn) return;
+  const w = trackDots.width = video.videoWidth, h = trackDots.height = video.videoHeight;
+  const dot = (p, c, r = 3) => { dotsCtx.fillStyle = c; dotsCtx.beginPath(); dotsCtx.arc(p.x * w, p.y * h, r, 0, 7); dotsCtx.fill(); };
+  if (faceSeen()) S.face.lm.forEach((p, i) => i % 5 || dot(p, '#7ff6ff', 2));
+  if (poseSeen()) S.pose.forEach((p, i) => i > 22 || !visible(p) || dot(p, HANDS.includes(i) ? '#ff5d7a' : '#ffc93c', 5));
+  $('#trackText').textContent = faceSeen()
+    ? `face ✓  jaw ${S.jaw.toFixed(2)}  turn ${S.turn.toFixed(2)}\nmove ${S.move.toFixed(3)}  puff ${S.puff.toFixed(2)}  pucker ${S.pucker.toFixed(2)}`
+    : 'no face';
+}
+
+/* ================= Step control (skip / end) ================= */
+const SKIP = Symbol('skip');
+let ctl = newCtl();
+function newCtl() { return { aborted: false, rejects: new Set(), cleanups: [] }; }
+function guard(p) {
+  const c = ctl;
+  if (c.aborted) return Promise.reject(SKIP);
+  return new Promise((res, rej) => {
+    c.rejects.add(rej);
+    p.then(v => { c.rejects.delete(rej); res(v); }, e => { c.rejects.delete(rej); rej(e); });
+  });
+}
+const onCleanup = fn => ctl.cleanups.push(fn);
+function runCleanups(c) { c.cleanups.splice(0).reverse().forEach(f => { try { f(); } catch {} }); }
+function abortStep() {
+  const c = ctl; c.aborted = true;
+  if (hasTTS) speechSynthesis.cancel();
+  c.rejects.forEach(r => r(SKIP)); c.rejects.clear();
+  runCleanups(c);
+}
+function sleep(ms) {
+  let t; onCleanup(() => clearTimeout(t));
+  return guard(new Promise(r => t = setTimeout(r, ms)));
+}
+
+/* ================= Call UI helpers ================= */
+const callEl = $('#call'), selfEl = $('#self'), dockEl = $('#dock');
+function caption(text) { $('#caption').textContent = text; }
+async function say(text, spoken) {
+  caption(text);
+  docEl.classList.add('talking');
+  try { await guard(speak(spoken || text)); }
+  finally { docEl.classList.remove('talking'); }
+}
+function dock(html) { dockEl.innerHTML = html; onCleanup(clearDock); return dockEl; }
+function clearDock() { dockEl.innerHTML = ''; }
+function button(label, emoji = '👍', cls = '') {
+  return guard(new Promise(res => {
+    dock(`<button class="bigbtn ${cls}">${emoji} ${label}</button>`)
+      .querySelector('button').onclick = () => { sfx.pop(); clearDock(); res(); };
+  }));
+}
+function resetSelf() {
+  callEl.classList.remove('focus');
+  selfEl.classList.remove('scanning', 'thermo-on', 'magnify-on', 'light-on');
+  $('#olabel').classList.remove('show');
+}
+function focusSelf() { callEl.classList.add('focus'); onCleanup(resetSelf); }
+function overlay(name, on = true) { selfEl.classList.toggle(name, on); }
+function olabel(text) { const l = $('#olabel'); l.textContent = text; l.classList.add('show'); }
+function flash() { const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); sfx.shutter(); }
+function thermo(pct, color) { selfEl.style.setProperty('--t', pct + '%'); selfEl.style.setProperty('--tcolor', color); }
+
+const pick = list => list[Math.floor(Math.random() * list.length)];
+const COME_BACK = [`Hey, where did you go? Come back so I can see you!`, `I can't see you! Look right into the camera.`];
+
+/** Resolves true once `test()` has held for `hold` ms, or false after `timeout` ms. */
+function watch(test, hold, timeout) {
+  return guard(new Promise(res => {
+    const t0 = now(); let since = null;
+    const iv = setInterval(() => {
+      let ok = false; try { ok = !!test(); } catch {}
+      if (ok) { since ??= now(); if (now() - since >= hold) return done(true); }
+      else since = null;
+      if (now() - t0 > timeout) done(false);
+    }, 60);
+    const done = v => { clearInterval(iv); res(v); };
+    onCleanup(() => clearInterval(iv));
+  }));
+}
+
+/**
+ * Watch for the child to do something; if they don't, nudge and watch again.
+ * Never gets stuck: after the last nudge it gives up and returns false.
+ * Returns null when motion sensing isn't available (it just waits `fallback` ms).
+ */
+async function expect(test, { hold = 400, timeout = 6000, nudges = [], fallback = 2500, onRetry } = {}) {
+  if (!visionOn()) { await sleep(fallback); return null; }
+  for (let i = 0; ; i++) {
+    if (await watch(test, hold, timeout)) return true;
+    if (i >= nudges.length) return false;
+    await say(anyoneSeen() ? nudges[i] : pick(COME_BACK));
+    onRetry?.();
+  }
+}
+/** Pose tracking costs more than face tracking, so it only runs during the steps that need it. */
+function usePose() { vision.wantPose = true; S.pose = null; onCleanup(() => vision.wantPose = false); }
+
+/**
+ * The AAAH meter fills while the child is loud (mic) with their mouth open (camera).
+ * Uses whichever of the two is available, and nudges if they're quiet or their mouth is shut.
+ */
+function ahhMeter() {
+  const useMic = hasMic, useFace = visionOn();
+  if (!useMic && !useFace) return button('I did it!', '👄');
+  return guard(new Promise(res => {
+    const d = dock(`<div class="meter"><div class="m-icon">👄</div><div class="m-bar"><div class="m-fill"></div></div><button class="mini">Done</button></div>`);
+    const fill = d.querySelector('.m-fill'), ic = d.querySelector('.m-icon'), mini = d.querySelector('.mini');
+    const ticks = 26;
+    let count = 0, shut = 0, idle = 0, nudgedShut = false, nudgedIdle = false, talking = false, finished = false;
+    const nudge = async text => { talking = true; try { await say(text); } catch {} talking = false; };
+    const iv = setInterval(() => {
+      if (talking) return; // don't let the doctor's own voice fill the meter
+      const level = useMic ? micLevel() : 0;
+      const loud = !useMic || level > .03;
+      const mouthKnown = useFace && faceSeen();
+      const open = !mouthKnown || S.jaw > .25;
+      if ((useMic || mouthKnown) && loud && open) count++;
+      else if (useMic && loud && mouthKnown && !open) shut++;
+      else idle++;
+      const p = Math.min(1, count / ticks);
+      fill.style.width = p * 100 + '%';
+      ic.style.transform = `scale(${1 + Math.min(useMic ? level * 8 : S.jaw, .9)})`;
+      if (p >= 1) return finish();
+      if (!nudgedShut && shut > 30) { nudgedShut = true; nudge(`Open your mouth even wider! Like a big hippo!`); }
+      else if (!nudgedIdle && idle > 110 && p < .5) {
+        nudgedIdle = true;
+        nudge(useFace && !anyoneSeen() ? pick(COME_BACK) : useMic ? `I can't hear you! Even louder! Aaaah!` : `Open your mouth super wide! Aaaah!`);
+      }
+    }, 50);
+    const t = setTimeout(() => mini.classList.add('show'), 9000);
+    function finish() { if (finished) return; finished = true; clearInterval(iv); fill.style.width = '100%'; setTimeout(res, 350); }
+    mini.onclick = finish;
+    onCleanup(() => { clearInterval(iv); clearTimeout(t); });
+  }));
+}
+
+const STEPS = [
+  { id: 'hello', run: greet },
+  { id: 'temp',   icon: '🌡️', name: 'Temperature',  ok: 'Just right',     bad: 'A little warm',     run: temperature },
+  { id: 'ahh',    icon: '👄', name: 'Throat',       ok: 'Big strong voice', bad: 'Teeny bit scratchy', run: ahh },
+  { id: 'tongue', icon: '👅', name: 'Tongue',       ok: 'Nice and pink',   run: tongue },
+  { id: 'ears',   icon: '👂', name: 'Ears',         ok: 'No dinosaurs',    run: ears },
+  { id: 'heart',  icon: '❤️', name: 'Heart',        ok: 'Big and strong',  run: heart },
+  { id: 'lungs',  icon: '🕯️', name: 'Lungs',        ok: 'Super blowers',   run: lungs },
+  { id: 'reflex', icon: '👃', name: 'Reflexes',     ok: 'Super speedy',    run: reflexes },
+  { id: 'bounce', icon: '🦘', name: 'Bounciness',   ok: 'Extra bouncy',    run: bounce },
+  { id: 'think',  run: analyze },
+  { id: 'result', run: results },
+];
+const TESTS = STEPS.filter(s => s.icon);
+$('#progress').innerHTML = TESTS.map(s => `<span data-id="${s.id}">${s.icon}</span>`).join('');
+function setProgress(id) {
+  const idx = TESTS.findIndex(s => s.id === id);
+  $$('#progress span').forEach((el, i) => {
+    const after = idx < 0 ? STEPS.findIndex(s => s.id === id) > 1 : i < idx;
+    el.classList.toggle('done', after);
+    el.classList.toggle('now', i === idx);
+  });
+}
+
+async function greet() {
+  sfx.beep();
+  await say(`Beep boop! Hello, ${N()}! I am Robo Doctor 3000.`);
+  await say(`I heard you might not be feeling well today.`);
+  await say(`Let's do a super checkup, and find out if you are sick or healthy!`);
+  await say(`Are you ready? Press the big green button!`);
+  await button(`I'm ready!`, '🚀');
+  sfx.chime();
+  await say(`Hooray! Let's go!`);
+}
+
+async function temperature() {
+  const warm = V().flags.temp, level = warm ? 80 : 52, color = warm ? '#f97316' : '#22c55e';
+  const rise = () => { thermo(4, color); sfx.scan(); setTimeout(() => thermo(level, color), 60); };
+  await say(`First, I will check your temperature with my robot scanner.`);
+  await say(`Look at the camera and hold super still, like a statue!`);
+  focusSelf(); overlay('scanning'); overlay('thermo-on');
+  rise();
+  const ok = await expect(() => faceSeen() && S.move < .03, {
+    hold: 2600, timeout: 7000, fallback: 3000, onRetry: rise,
+    nudges: [`Oops, you wiggled! Be a statue. Freeze!`, `Statue! Super, super still!`],
+  });
+  if (ok === false) await say(`Good enough! My scanner is very fast.`);
+  thermo(level, color);
+  overlay('scanning', false); sfx.beep();
+  olabel(warm ? '🌡️ A little warm' : '✅ Just right!');
+  await say(warm ? `Hmm. You are a little bit warm.` : `Beep! Your temperature is just right. Not too hot, and not too cold!`);
+  await sleep(500);
+}
+
+async function ahh() {
+  const scratchy = V().flags.ahh;
+  await say(`Now I need to check your throat.`);
+  await say(`Open your mouth really wide and say AAAAH, as loud and long as you can!`, `Open your mouth really wide, and say, ahhhhhhh, as loud and long as you can!`);
+  await say(`Ready? Go!`);
+  await ahhMeter();
+  sfx.chime();
+  await say(scratchy ? `Wow, what a big voice! Your throat is a teeny bit scratchy, but it works great.` : `Wow! What a big, strong voice! Your throat is working perfectly.`);
+}
+
+async function tongue() {
+  await say(`Next, show me your tongue! Stick it out as far as it goes. Blehhh!`, `Next, show me your tongue! Stick it out as far as it goes. Bleh!`);
+  focusSelf(); overlay('magnify-on');
+  // The face tracker can't see tongues, but nobody sticks one out with their mouth shut.
+  const ok = await expect(() => faceSeen() && S.jaw > .2, {
+    hold: 700, timeout: 5000, fallback: 1600,
+    nudges: [`Hmm, I can't see your tongue yet. Stick it out even more! Bleh!`],
+  });
+  if (ok === false) await say(`That's okay, I got a little peek!`);
+  else await say(`Hold it... hold it...`);
+  flash();
+  await sleep(600);
+  olabel('✅ Nice and pink');
+  await say(`Got it! What a nice, pink, healthy tongue.`);
+  await sleep(400);
+}
+
+async function ears() {
+  await say(`Now I'm going to look inside your ears with my robot flashlight.`);
+  await say(`Turn your head to the side, so I can see your ear.`);
+  focusSelf(); overlay('light-on');
+  // `turn` keeps its last value if the face is lost mid-turn, which counts too.
+  let t0 = now();
+  const first = await expect(() => S.faceAt > t0 && Math.abs(S.turn) > .17, {
+    hold: 600, timeout: 6000, fallback: 2800,
+    nudges: [`Turn your head a little more, so I can see your ear!`],
+  });
+  const side = Math.sign(S.turn);
+  await say(first === false ? `I think I see it! No bugs... no dinosaurs... just a super ear!` : `Hmm... I see... no bugs... no dinosaurs... just a super ear!`);
+  await say(`Now turn to the other side.`);
+  t0 = now();
+  await expect(() => S.faceAt > t0 && (first ? S.turn * side < -.17 : Math.abs(S.turn) > .17), {
+    hold: 600, timeout: 6000, fallback: 2800,
+    nudges: [`The other side! Turn, turn, turn!`],
+  });
+  sfx.beep(); olabel('✅ No dinosaurs!');
+  await say(`That ear is great too!`);
+}
+
+async function heart() {
+  usePose();
+  await say(`Now let's listen to your heart. Put your hand on your chest, like this.`);
+  dock(`<div class="bigemoji">🤚❤️</div>`);
+  const ok = await expect(handOnChest, {
+    hold: 600, timeout: 6000, fallback: 1200,
+    nudges: [`Put your hand right here, on your chest!`],
+  });
+  if (ok) { sfx.pop(); await say(`Perfect!`); }
+  await say(`Shhh. Be super quiet so my robo stethoscope can hear.`);
+  const h = dock(`<div class="heart">❤️</div>`).querySelector('.heart');
+  for (let i = 0; i < 7; i++) {
+    sfx.thump(); h.classList.remove('beat'); void h.offsetWidth; h.classList.add('beat');
+    await sleep(820);
+  }
+  await say(`Ba-bum, ba-bum! Your heart is big and strong!`);
+  clearDock();
+}
+
+async function lungs() {
+  const listening = hasMic || visionOn();
+  await say(`Now let's check your lungs. Here are three birthday candles.`);
+  const d = dock(`<div class="candles"><button class="candle"><i class="flame"></i></button><button class="candle"><i class="flame"></i></button><button class="candle"><i class="flame"></i></button></div>`);
+  const candles = [...d.querySelectorAll('.candle')];
+  await say(listening ? `Take a big breath in... and blow them out!` : `Take a big breath in, blow, and tap a candle to blow it out!`);
+  caption(listening ? `Blow! 💨  (or tap a candle)` : `Blow, then tap a candle! 💨`);
+  const state = { nudged: false };
+  for (let i = 0; i < candles.length; i++) {
+    await blowOut(candles, state);
+    if (i < candles.length - 1) await sleep(700);
+  }
+  sfx.chime();
+  await say(`Whoosh! What super strong lungs!`);
+}
+/** Resolves when a lit candle is tapped, the mic hears a blow, or the camera sees puffed cheeks / blowing lips. */
+function blowOut(candles, state) {
+  return guard(new Promise(res => {
+    let streak = 0, iv = null, talking = false;
+    const t0 = now();
+    const extinguish = c => {
+      if (!c || c.classList.contains('out')) return;
+      c.classList.add('out'); sfx.whoosh(); clearInterval(iv); candles.forEach(x => x.onclick = null); res();
+    };
+    candles.forEach(c => c.onclick = () => extinguish(c));
+    iv = setInterval(() => {
+      if (talking) return;
+      if (now() - t0 > (state.helped ? 5000 : 16000)) { // still lit: the doctor helps rather than getting stuck
+        talking = true; state.helped = true;
+        say(`Let me help you! Whooooo!`).catch(() => {}).finally(() => { talking = false; extinguish(candles.find(c => !c.classList.contains('out'))); });
+        return;
+      }
+      const level = hasMic ? micLevel() : 0;
+      const lips = visionOn() && faceSeen() && (S.puff > .35 || S.pucker > .55);
+      const blowing = level > .07 || (lips && (!hasMic || level > .02));
+      streak = blowing ? streak + 1 : 0;
+      if (streak >= 5) return extinguish(candles.find(c => !c.classList.contains('out')));
+      if (!state.nudged && now() - t0 > 8000) {
+        state.nudged = true; talking = true;
+        say(visionOn() && !anyoneSeen() ? pick(COME_BACK) : `Big breath in... and blow! Whoooo!`)
+          .catch(() => {}).finally(() => { talking = false; caption(`Blow! 💨  (or tap a candle)`); });
+      }
+    }, 50);
+    onCleanup(() => clearInterval(iv));
+  }));
+}
+
+async function reflexes() {
+  usePose();
+  await say(`Reflex test! Do what I say, as fast as you can!`);
+  let noseY = null;
+  const bentDown = () => noseY != null && (!poseSeen() || S.pose[0].y > noseY + .15);
+  const moves = [
+    { line: 'Touch your nose!', emoji: '👃', part: 'nose', test: () => touching([0]) },
+    { line: 'Touch your toes!', emoji: '🦶', part: 'toes', test: bentDown, before: () => noseY = poseSeen() ? S.pose[0].y : null },
+    { line: 'Touch your ears!', emoji: '👂', part: 'ears', test: () => touching([7, 8]) },
+    { line: 'Touch your belly button!', emoji: '👆', part: 'belly button', test: handOnBelly },
+    { line: 'Touch your nose again!', emoji: '👃', part: 'nose', test: () => touching([0]) },
+    { line: 'Wiggle your fingers!', emoji: '🖐️' },
+  ];
+  for (const m of moves) {
+    dock(`<div class="bigemoji">${m.emoji}</div>`);
+    m.before?.();
+    await say(m.line);
+    const ok = m.test && (m.part !== 'toes' || noseY != null)
+      ? await expect(m.test, { hold: 250, timeout: 3500, fallback: 1300, nudges: [`Where's your ${m.part}? Touch it!`] })
+      : await sleep(1300);
+    if (ok) { sfx.pop(); await say(pick(['Yes!', 'Speedy!', 'Got it!', 'Zoom!', 'Wow!'])); }
+  }
+  clearDock(); sfx.chime();
+  await say(`Wow! Super speedy reflexes!`);
+}
+
+async function bounce() {
+  await say(`Last test! The bouncy test! When I say go, jump up and down like a kangaroo. Ten big jumps!`);
+  if (visionOn()) usePose();
+  await say(`Ready... set... GO!`);
+  focusSelf();
+  const d = dock(`<div class="counter"><div class="num">0</div><div class="m-icon">🦘</div><div class="m-bar"><div class="m-fill"></div></div></div>`);
+  const num = d.querySelector('.num'), fill = d.querySelector('.m-fill');
+  const show = (n, p) => { num.textContent = n; fill.style.width = Math.min(1, p) * 100 + '%'; };
+
+  // With the camera: count real jumps, nudging if they stop.
+  let jumps = 0;
+  if (visionOn()) {
+    J.base = null; J.up = false;
+    J.onJump = () => { if (jumps < 10) { jumps++; show(jumps, jumps / 10); sfx.boing(); } };
+    onCleanup(() => J.onJump = null);
+    const t0 = now();
+    let lastJump = t0, lastCount = 0, nudges = 0;
+    while (jumps < 10 && now() - t0 < 16000) {
+      await sleep(150);
+      if (now() - t0 > 3000 && !S.poseAt) break; // body never seen: count along instead
+      if (jumps !== lastCount) { lastCount = jumps; lastJump = now(); }
+      if (now() - lastJump > 4000 && nudges < 2) {
+        nudges++;
+        await say(poseSeen() ? pick([`Keep jumping! Boing, boing!`, `Higher! Like a kangaroo!`]) : `I can't see you jumping! Step back a little!`);
+        lastJump = now();
+      }
+    }
+    J.onJump = null;
+  }
+  // Without the camera (or if it never saw a body): count along out loud.
+  if (jumps === 0) {
+    let moving = 0;
+    const iv = setInterval(() => { if (motionLevel() > .02) moving++; }, 100);
+    onCleanup(() => clearInterval(iv));
+    motionLevel();
+    for (let i = 1; i <= 10; i++) {
+      show(i, hasVideo ? Math.max(moving / 50, i / 20) : i / 10);
+      await say(String(i));
+      await sleep(250);
+    }
+    clearInterval(iv);
+  }
+  show(num.textContent, 1);
+  sfx.chime(); olabel('⚡ Extra bouncy!');
+  await say(`Wow! You have SO much energy!`);
+  await sleep(400);
+}
+
+async function analyze() {
+  docEl.classList.add('thinking');
+  onCleanup(() => docEl.classList.remove('thinking'));
+  await say(`Beep boop! Now my robot brain will think about all of your tests.`);
+  const d = dock(`<div class="analyze"><div class="m-bar"><div class="m-fill"></div></div><div class="amsg"></div></div>`);
+  const fill = d.querySelector('.m-fill'), msg = d.querySelector('.amsg');
+  const msgs = ['Counting wiggles…', 'Measuring giggles…', 'Checking bravery…', 'Adding up sneezes…', 'Thinking very hard…'];
+  caption('🤖 Computing…');
+  for (let i = 0; i < msgs.length; i++) {
+    msg.textContent = msgs[i];
+    fill.style.width = (i + 1) / msgs.length * 100 + '%';
+    (i % 2 ? sfx.boop : sfx.beep)();
+    await sleep(950);
+  }
+  clearDock();
+}
+
+async function results() {
+  const v = V(), date = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  $('#report').innerHTML = `
+    <div class="rc">
+      <div class="rc-head">🩺 Robo Doctor 3000 · Checkup Report</div>
+      <div class="rc-name">${escapeHtml(N())} · ${date}</div>
+      <ul>${TESTS.map((s, i) => {
+        const bad = v.flags[s.id];
+        return `<li style="animation-delay:${.15 * i}s"><span class="ic">${s.icon}</span>${s.name}<span class="res">${bad ? s.bad + ' 🟡' : s.ok + ' ✅'}</span></li>`;
+      }).join('')}</ul>
+      <div class="rc-school">${v.school}</div>
+      <div class="stamp" style="--sc:${v.color}">${v.stamp.replace(/ (BIT)/, '<br>$1')}</div>
+    </div>`;
+  callEl.classList.add('results');
+  onCleanup(() => callEl.classList.remove('results'));
+  await sleep(2000);
+  if (v === VERDICTS.sick) sfx.soft();
+  else { sfx.tada(); confetti(); docEl.classList.add('happy'); }
+  for (const line of v.lines(N())) await say(line);
+  await say(`Bye-bye, ${N()}! Press the red button to hang up.`);
+  await button(`Bye-bye, Doctor!`, '👋', 'red');
+}
+
+/* ================= Call lifecycle ================= */
+let callStart = 0, clockTimer = null, callActive = false;
+function show(id) { $$('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+
+async function runExam() {
+  callActive = true;
+  for (const step of STEPS) {
+    if (!callActive) return;
+    ctl = newCtl();
+    setProgress(step.id);
+    try { await step.run(); }
+    catch (e) { if (e !== SKIP) console.error(e); }
+    runCleanups(ctl);
+  }
+  if (callActive) hangUp();
+}
+
+function hangUp() {
+  if (!callActive) return;
+  callActive = false;
+  abortStep();
+  clearInterval(clockTimer);
+  sfx.hangup();
+  docEl.classList.remove('happy', 'thinking', 'talking');
+  caption('');
+  const v = V(), secs = Math.round((Date.now() - callStart) / 1000);
+  $('#endSub').textContent = `Checkup with Robo Doctor 3000 · ${fmt(secs)}`;
+  $('#endVerdict').innerHTML = `${escapeHtml(N())}<br><span class="stamp" style="--sc:${v.color};opacity:1">${v.stamp}</span><br>${v.school}`;
+  show('end');
+}
+
+const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+const escapeHtml = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+let ringTimer = null;
+$('#startBtn').onclick = async () => {
+  settings.name = $('#kidName').value.trim();
+  settings.useCam = $('#useCam').checked;
+  saveSettings();
+  initAudio();
+  unlockSpeech();
+  const btn = $('#startBtn');
+  btn.disabled = true; btn.textContent = 'Getting the camera ready…';
+  try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch {}
+  await initMedia();
+  initVision(); // loads in the background while it rings
+  btn.disabled = false; btn.textContent = '📞 Start the call';
+  $('#ringSub').textContent = settings.name ? `is calling ${settings.name}!` : 'is calling you!';
+  $('#ring').classList.remove('connecting');
+  show('ring');
+  sfx.ring();
+  ringTimer = setInterval(sfx.ring, 2300);
+};
+
+$('#declineBtn').onclick = () => {
+  sfx.boop();
+  const a = $('#ring .avatar');
+  a.classList.remove('shake'); void a.offsetWidth; a.classList.add('shake');
+  $('#ringSub').textContent = 'really wants to say hi! 😄';
+};
+
+$('#answerBtn').onclick = async () => {
+  clearInterval(ringTimer);
+  initAudio();
+  unlockSpeech(); // must happen inside the tap for iPad/iPhone
+  sfx.pop();
+  $('#ring').classList.add('connecting');
+  $('#ringSub').textContent = 'Connecting…';
+  await new Promise(r => setTimeout(r, 1200));
+  resetSelf(); callEl.classList.remove('results'); docEl.classList.remove('happy');
+  $('#report').innerHTML = ''; caption(''); clearDock();
+  show('call');
+  callStart = Date.now();
+  $('#clock').textContent = '00:00';
+  clockTimer = setInterval(() => $('#clock').textContent = fmt(Math.round((Date.now() - callStart) / 1000)), 1000);
+  runExam();
+};
+
+$('#againBtn').onclick = () => { try { document.exitFullscreen?.().catch(() => {}); } catch {} show('setup'); };
+
+/* ================= Confetti ================= */
+function confetti() {
+  const c = $('#confetti'), colors = ['#ff6b8b', '#ffc93c', '#22c55e', '#38bdf8', '#a78bfa', '#fb923c'];
+  for (let i = 0; i < 140; i++) {
+    const p = document.createElement('i');
+    p.style.left = Math.random() * 100 + '%';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = 2.4 + Math.random() * 2.6 + 's';
+    p.style.animationDelay = Math.random() * .9 + 's';
+    c.appendChild(p);
+  }
+  setTimeout(() => c.innerHTML = '', 6500);
+}
+
+/* ================= Secret parent menu ================= */
+const pmenu = $('#pmenu');
+const openMenu = () => { syncChoices(); updateVisionStatus(); pmenu.classList.add('on'); };
+const closeMenu = () => pmenu.classList.remove('on');
+let holdTimer = null;
+const gear = $('#gear');
+gear.addEventListener('pointerdown', () => { gear.classList.add('holding'); holdTimer = setTimeout(() => { gear.classList.remove('holding'); openMenu(); }, 900); });
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => gear.addEventListener(ev, () => { clearTimeout(holdTimer); gear.classList.remove('holding'); }));
+gear.addEventListener('contextmenu', e => e.preventDefault());
+$('#pmClose').onclick = closeMenu;
+$('#dbgToggle').onchange = e => setDebug(e.target.checked);
+$('#pmSkip').onclick = () => { closeMenu(); if (callActive) abortStep(); };
+$('#pmEnd').onclick = () => { closeMenu(); hangUp(); };
+document.addEventListener('keydown', e => {
+  if (!$('#call').classList.contains('on')) return;
+  if (e.key === 'p' || e.key === 'P') openMenu();
+  else if (e.key === 'Escape') closeMenu();
+  else if (e.key === 'd' || e.key === 'D') setDebug(!debugOn);
+  else if ((e.key === 's' || e.key === 'S') && callActive) abortStep();
+});
+</script>
+</body>
+</html>
